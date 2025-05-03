@@ -139,7 +139,7 @@ def main():
     featured_df = engineer_features(ticker_data, date_col, price_col, returns_col, volume_col)
     X, y, features = prepare_training_data(featured_df, date_col, price_col)
 
-    if len(X) < 24:
+    if len(X) < 6:
         st.warning("Insufficient data for model training.")
         return
 
