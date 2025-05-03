@@ -142,6 +142,7 @@ def main():
     if len(X) < 6:
         st.warning("Insufficient data for model training.")
         return
+st.write("Number of rows after feature engineering:", len(featured_df))
 
     rf_model, xgb_model, rf_metrics, xgb_metrics = train_models(X, y)
 
