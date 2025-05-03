@@ -14,9 +14,11 @@ st.title("📈 1-Year Stock Price Forecast Using Random Forest")
 def fetch_data(ticker, start="2018-01-01", end="2024-12-31"):
     try:
         data = yf.download(ticker, start=start, end=end)
-        if data.empty or 'Close' not in data.columns:
-            raise ValueError("Downloaded data is empty or missing 'Close'")
+        if data.empty:
+            raise ValueError("Downloaded data is empty")
         data.reset_index(inplace=True)
+        if 'Close' not in data.columns:
+            raise ValueError("Column 'Close' is missing from downloaded data")
         data = data.dropna(subset=['Close'])
         return data
     except Exception as e:
@@ -55,7 +57,9 @@ def train_model(data):
         preds = model.predict(X_test)
         all_tree_preds = np.stack([est.predict(X_test) for est in model.estimators_])
         pred_std = all_tree_preds.std(axis=0)
-        return model, features, X.iloc[-1:], model.predict(X.iloc[-1:])[0], y_test.iloc[-1], r2_score(y_test, preds), pred_std[-1]
+        last_input = X.iloc[[-1]]
+        prediction = model.predict(last_input)[0]
+        return model, features, data.iloc[[-1]], prediction, y_test.iloc[-1], r2_score(y_test, preds), pred_std[-1]
     except Exception as e:
         st.error(f"Model training error: {e}")
         return None, [], None, None, None, None, None
@@ -68,7 +72,10 @@ if ticker:
     else:
         st.write(f"Data from {df['Date'].min().date()} to {df['Date'].max().date()}")
         st.subheader("Raw Price Chart")
-        st.line_chart(df.set_index("Date")["Close"])
+        if 'Close' in df.columns:
+            st.line_chart(df.set_index("Date")["Close"])
+        else:
+            st.warning("Column 'Close' not found in data.")
 
         df_feat = engineer_features(df)
         st.write("Rows after feature engineering:", len(df_feat))
