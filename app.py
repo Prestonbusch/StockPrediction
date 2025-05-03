@@ -42,6 +42,12 @@ def load_data(file_path='Data/qgzpz8q9nyapvqp1_csv.zip'):
             zip_ref.extract(file_name, path='temp_data')
             # Read the extracted CSV file
             data = pd.read_csv(f'temp_data/{file_name}')
+            # Display data info for debugging
+            st.write("Data loaded successfully!")
+            st.write(f"Number of records: {len(data)}")
+            st.write(f"Columns: {data.columns.tolist()}")
+            st.write("Sample of first few rows:")
+            st.write(data.head())
             # Clean up the extracted file
             os.remove(f'temp_data/{file_name}')
             return data
@@ -63,14 +69,40 @@ def preprocess_data(data, sp500_tickers):
     """
     Preprocess the data for analysis and modeling
     """
+    # Check and standardize column names (convert to uppercase for consistency)
+    data.columns = [col.upper() if col.lower() in ['ticker', 'prc', 'vol', 'ret', 'date', 'bidlo', 'askhi', 'shrout', 'divamt', 'sprtrn'] else col for col in data.columns]
+    
     # Filter for S&P 500 stocks
-    data = data[data['TICKER'].isin(sp500_tickers)]
+    if 'TICKER' in data.columns:
+        data = data[data['TICKER'].isin(sp500_tickers)]
+    else:
+        st.error(f"TICKER column not found. Available columns: {data.columns.tolist()}")
     
-    # Convert date to datetime format
-    data['date'] = pd.to_datetime(data['date'], format='%m/%d/%Y')
+    # Convert date to datetime format - try multiple formats
+    try:
+        # First attempt with format detection
+        data['date'] = pd.to_datetime(data['date'])
+    except:
+        try:
+            # Second attempt with explicit format
+            data['date'] = pd.to_datetime(data['date'], format='%m/%d/%Y')
+        except:
+            try:
+                # Third attempt with another common format
+                data['date'] = pd.to_datetime(data['date'], format='%Y-%m-%d')
+            except Exception as e:
+                st.error(f"Error converting dates: {e}")
+                st.write("Sample of date values:", data['date'].head())
     
-    # Ensure PRC is absolute value (in the data, negative values indicate bid/ask average)
-    data['PRC'] = data['PRC'].abs()
+    # Check if PRC column exists and convert to absolute value
+    if 'PRC' in data.columns:
+        data['PRC'] = data['PRC'].abs()
+    elif 'prc' in data.columns:
+        # Rename to uppercase for consistency
+        data.rename(columns={'prc': 'PRC'}, inplace=True)
+        data['PRC'] = data['PRC'].abs()
+    else:
+        st.error("Price column (PRC/prc) not found in dataset")
     
     # Fill missing values
     data['DIVAMT'].fillna(0, inplace=True)
