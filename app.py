@@ -10,14 +10,14 @@ import plotly.express as px
 st.set_page_config(page_title="1-Year Stock Price Forecast", page_icon="📈", layout="wide")
 st.title("📈 1-Year Stock Price Forecast Using Random Forest")
 
+@st.cache_data
 def fetch_data(ticker, start="2018-01-01", end="2024-12-31"):
     try:
         data = yf.download(ticker, start=start, end=end)
         if data.empty:
             return pd.DataFrame()
         data.reset_index(inplace=True)
-        if "Adj Close" not in data.columns:
-            data["Adj Close"] = data["Close"]
+        data['Adj Close'] = data['Adj Close'] if 'Adj Close' in data.columns else data['Close']
         return data
     except Exception as e:
         st.error(f"Data fetch error: {e}")
@@ -41,6 +41,9 @@ def train_model(data):
         features = [col for col in data.columns if 'Lag' in col]
         X = data[features]
         y = data['Target']
+        if X.empty or y.empty:
+            raise ValueError("Training data is empty.")
+
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
         model = RandomForestRegressor(n_estimators=100, random_state=42)
         model.fit(X_train, y_train)
@@ -59,10 +62,12 @@ if ticker:
         st.error("Failed to load data or ticker not valid.")
     else:
         st.write(f"Data from {df['Date'].min().date()} to {df['Date'].max().date()}")
-        if 'Adj Close' in df.columns:
-            st.line_chart(df.set_index("Date")["Adj Close"])
+        st.subheader("Raw Price Chart")
+        st.line_chart(df.set_index("Date")["Adj Close"])
 
         df_feat = engineer_features(df)
+        st.write("Rows after feature engineering:", len(df_feat))
+
         if df_feat.empty or len(df_feat) < 50:
             st.warning("Not enough data after feature engineering.")
         else:
