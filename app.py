@@ -299,14 +299,9 @@ def main():
     # Load S&P 500 ticker list
     sp500_tickers = """AAPL MSFT NVDA AMZN META BRK.B GOOGL AVGO TSLA GOOG LLY JPM V NFLX XOM MA COST WMT PG UNH JNJ HD ABBV KO PM BAC CRM PLTR WFC CSCO MCD ORCL CVX ABT IBM GE LIN MRK T NOW ACN PEP VZ ISRG""".split()
     
-    # Ticker selection
-    selected_ticker = st.sidebar.selectbox("Select Stock", sp500_tickers)
-    
-    # Model selection
-    model_type = st.sidebar.selectbox(
-        "Select Prediction Model",
-        ["Ensemble (RF + XGBoost)", "Time Series (SARIMAX)", "Both Models"]
-    )
+    # Debug options in sidebar
+    with st.sidebar.expander("Debug Options"):
+        debug_mode = st.checkbox("Enable Debug Mode", value=True)
     
     # Load data
     data = load_data()
@@ -315,16 +310,53 @@ def main():
     if not os.path.exists('temp_data'):
         os.makedirs('temp_data')
     
+    # Display data info in debug mode
+    if debug_mode:
+        st.subheader("Raw Data Information")
+        st.write(f"Data shape: {data.shape}")
+        st.write(f"Columns: {data.columns.tolist()}")
+        st.write("First few rows:")
+        st.write(data.head())
+    
     # Preprocess data
     processed_data = preprocess_data(data, sp500_tickers)
     
-    # Check if selected ticker is in the data
-    if selected_ticker not in processed_data['TICKER'].unique():
-        st.error(f"No data available for {selected_ticker}")
+    # Show the preprocessed data in debug mode
+    if debug_mode:
+        st.subheader("Preprocessed Data")
+        st.write(f"Processed data shape: {processed_data.shape}")
+        st.write(f"Columns: {processed_data.columns.tolist()}")
+        st.write("First few rows of processed data:")
+        st.write(processed_data.head())
+    
+    # Check if we have any data after preprocessing
+    if processed_data.empty:
+        st.error("No data available after preprocessing. Please check your data source and filtering criteria.")
         return
+    
+    # Get unique tickers in the processed data
+    available_tickers = processed_data['TICKER'].unique().tolist()
+    
+    if not available_tickers:
+        st.error("No tickers found in the processed data. Please check your data source.")
+        return
+    
+    # Ticker selection
+    selected_ticker = st.sidebar.selectbox("Select Stock", available_tickers)
+    
+    # Model selection
+    model_type = st.sidebar.selectbox(
+        "Select Prediction Model",
+        ["Ensemble (RF + XGBoost)", "Time Series (SARIMAX)", "Both Models"]
+    )
     
     # Engineer features
     ticker_data = engineer_features(processed_data, selected_ticker)
+    
+    # Check if we have any data after feature engineering
+    if ticker_data.empty:
+        st.error(f"No data available after feature engineering for {selected_ticker}.")
+        return
     
     # Create yearly data for training
     yearly_data = create_yearly_training_data(ticker_data)
