@@ -4,22 +4,27 @@ import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import r2_score
+from sklearn.metrics import mean_squared_error, r2_score
 import plotly.express as px
 
 st.set_page_config(page_title="1-Year Stock Price Forecast", page_icon="📈", layout="wide")
 st.title("📈 1-Year Stock Price Forecast Using Random Forest")
 
 def fetch_data(ticker, start="2018-01-01", end="2024-12-31"):
-    data = yf.download(ticker, start=start, end=end)
-    if data.empty:
+    data = yf.download(ticker, start=start, end=end, group_by='ticker', auto_adjust=False)
+
+    # Flatten columns if they are in MultiIndex format
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = data.columns.get_level_values(0)
+
+    if data.empty or "Close" not in data.columns:
         return pd.DataFrame()
+
     data.reset_index(inplace=True)
+    data.rename(columns={"Close": "Adj Close"}, inplace=True)  # Align column name to expected
     return data
 
 def engineer_features(data):
-    if 'Adj Close' not in data.columns or 'Date' not in data.columns:
-        return pd.DataFrame()
     data['Month'] = data['Date'].dt.month
     data['Year'] = data['Date'].dt.year
     data['Price'] = data['Adj Close']
@@ -41,24 +46,15 @@ def train_model(data):
     return model, features, X.iloc[-1:], preds[-1], y_test.iloc[-1], r2_score(y_test, preds), pred_std[-1]
 
 ticker = st.sidebar.text_input("Enter Ticker Symbol", value="AAPL")
-
 if ticker:
     df = fetch_data(ticker)
-    
     if df.empty:
-        st.error("No data found for the given ticker. Please try a different one.")
+        st.error("Failed to load data or ticker not valid.")
     else:
         st.write(f"Data from {df['Date'].min().date()} to {df['Date'].max().date()}")
-        if "Adj Close" in df.columns:
-            st.line_chart(df.set_index("Date")["Adj Close"])
-        else:
-            st.error("Missing 'Adj Close' in data. Available columns:")
-            st.write(df.columns.tolist())
+        st.line_chart(df.set_index("Date")["Adj Close"])
 
         df_feat = engineer_features(df)
-        st.subheader("Raw Data Sample")
-        st.write(df_feat.tail())
-
         if len(df_feat) < 50:
             st.warning("Not enough data after feature engineering.")
         else:
