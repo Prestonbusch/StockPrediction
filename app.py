@@ -1,11 +1,10 @@
-
 import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.metrics import r2_score
 import plotly.express as px
 
 st.set_page_config(page_title="1-Year Stock Price Forecast", page_icon="📈", layout="wide")
@@ -13,10 +12,14 @@ st.title("📈 1-Year Stock Price Forecast Using Random Forest")
 
 def fetch_data(ticker, start="2018-01-01", end="2024-12-31"):
     data = yf.download(ticker, start=start, end=end)
+    if data.empty:
+        return pd.DataFrame()
     data.reset_index(inplace=True)
     return data
 
 def engineer_features(data):
+    if 'Adj Close' not in data.columns or 'Date' not in data.columns:
+        return pd.DataFrame()
     data['Month'] = data['Date'].dt.month
     data['Year'] = data['Date'].dt.year
     data['Price'] = data['Adj Close']
@@ -38,22 +41,34 @@ def train_model(data):
     return model, features, X.iloc[-1:], preds[-1], y_test.iloc[-1], r2_score(y_test, preds), pred_std[-1]
 
 ticker = st.sidebar.text_input("Enter Ticker Symbol", value="AAPL")
+
 if ticker:
     df = fetch_data(ticker)
-    st.write(f"Data from {df['Date'].min().date()} to {df['Date'].max().date()}")
-    st.line_chart(df.set_index("Date")["Adj Close"])
-
-    df_feat = engineer_features(df)
-    if len(df_feat) < 50:
-        st.warning("Not enough data after feature engineering.")
+    
+    if df.empty:
+        st.error("No data found for the given ticker. Please try a different one.")
     else:
-        model, feat_cols, last_row, prediction, actual, r2, conf_std = train_model(df_feat)
-        st.subheader("🔮 Forecast for 1 Year Ahead")
-        st.metric("Predicted Price (in 12 months)", f"${prediction:.2f}", f"± ${conf_std:.2f}")
-        st.metric("Last Actual Price Used", f"${last_row['Price'].values[0]:.2f}")
-        st.metric("R² Score", f"{r2:.4f}")
+        st.write(f"Data from {df['Date'].min().date()} to {df['Date'].max().date()}")
+        if "Adj Close" in df.columns:
+            st.line_chart(df.set_index("Date")["Adj Close"])
+        else:
+            st.error("Missing 'Adj Close' in data. Available columns:")
+            st.write(df.columns.tolist())
 
-        st.subheader("📊 Feature Importance")
-        importances = pd.Series(model.feature_importances_, index=feat_cols).sort_values()
-        fig = px.bar(importances, orientation='h', labels={'value': 'Importance', 'index': 'Feature'})
-        st.plotly_chart(fig, use_container_width=True)
+        df_feat = engineer_features(df)
+        st.subheader("Raw Data Sample")
+        st.write(df_feat.tail())
+
+        if len(df_feat) < 50:
+            st.warning("Not enough data after feature engineering.")
+        else:
+            model, feat_cols, last_row, prediction, actual, r2, conf_std = train_model(df_feat)
+            st.subheader("🔮 Forecast for 1 Year Ahead")
+            st.metric("Predicted Price (in 12 months)", f"${prediction:.2f}", f"± ${conf_std:.2f}")
+            st.metric("Last Actual Price Used", f"${last_row['Price'].values[0]:.2f}")
+            st.metric("R² Score", f"{r2:.4f}")
+
+            st.subheader("📊 Feature Importance")
+            importances = pd.Series(model.feature_importances_, index=feat_cols).sort_values()
+            fig = px.bar(importances, orientation='h', labels={'value': 'Importance', 'index': 'Feature'})
+            st.plotly_chart(fig, use_container_width=True)
