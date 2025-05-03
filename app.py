@@ -80,10 +80,13 @@ def engineer_features(ticker_data, date_col, price_col, returns_col=None, volume
     
     # If returns column exists, calculate return-based features
     if returns_col is not None:
+        # Convert return column to numeric (handles strings from CSV)
+        df[returns_col] = pd.to_numeric(df[returns_col], errors='coerce')
+
         # Calculate cumulative returns
         for window in [3, 6, 12]:
             df[f'Cum_Return_{window}'] = (1 + df[returns_col]).rolling(window=window).apply(lambda x: np.prod(x) - 1)
-        
+
         # Calculate average returns
         for window in [3, 6, 12]:
             df[f'Avg_Return_{window}'] = df[returns_col].rolling(window=window).mean()
