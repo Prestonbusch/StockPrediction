@@ -17,9 +17,11 @@ def fetch_data(ticker, start="2018-01-01", end="2024-12-31"):
         if data.empty:
             raise ValueError("Downloaded data is empty")
         data.reset_index(inplace=True)
-        if 'Close' not in data.columns:
-            raise ValueError("Column 'Close' is missing from downloaded data")
-        data = data.dropna(subset=['Close'])
+        price_column = 'Adj Close' if 'Adj Close' in data.columns else 'Close'
+        if price_column not in data.columns:
+            raise ValueError("No valid price column found in downloaded data")
+        data = data.dropna(subset=[price_column])
+        data.rename(columns={price_column: 'Price'}, inplace=True)
         return data
     except Exception as e:
         st.error(f"Data fetch error: {e}")
@@ -27,12 +29,11 @@ def fetch_data(ticker, start="2018-01-01", end="2024-12-31"):
 
 def engineer_features(data):
     try:
-        if 'Date' not in data.columns or 'Close' not in data.columns:
+        if 'Date' not in data.columns or 'Price' not in data.columns:
             raise ValueError("Missing required columns in data.")
         data['Date'] = pd.to_datetime(data['Date'])
         data['Month'] = data['Date'].dt.month
         data['Year'] = data['Date'].dt.year
-        data['Price'] = data['Close']
         for lag in range(1, 13):
             data[f'Lag_{lag}'] = data['Price'].shift(lag)
         data['Target'] = data['Price'].shift(-12)
@@ -72,10 +73,7 @@ if ticker:
     else:
         st.write(f"Data from {df['Date'].min().date()} to {df['Date'].max().date()}")
         st.subheader("Raw Price Chart")
-        if 'Close' in df.columns:
-            st.line_chart(df.set_index("Date")["Close"])
-        else:
-            st.warning("Column 'Close' not found in data.")
+        st.line_chart(df.set_index("Date")["Price"])
 
         df_feat = engineer_features(df)
         st.write("Rows after feature engineering:", len(df_feat))
