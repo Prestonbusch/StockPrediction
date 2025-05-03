@@ -11,13 +11,16 @@ st.set_page_config(page_title="1-Year Stock Price Forecast", page_icon="📈", l
 st.title("📈 1-Year Stock Price Forecast Using Random Forest")
 
 @st.cache_data
+
 def fetch_data(ticker, start="2018-01-01", end="2024-12-31"):
     try:
         data = yf.download(ticker, start=start, end=end)
         if data.empty:
             return pd.DataFrame()
         data.reset_index(inplace=True)
-        data['Adj Close'] = data['Adj Close'] if 'Adj Close' in data.columns else data['Close']
+        # Normalize to ensure we always have a usable price column
+        if 'Adj Close' not in data.columns and 'Close' in data.columns:
+            data['Adj Close'] = data['Close']
         return data
     except Exception as e:
         st.error(f"Data fetch error: {e}")
@@ -25,6 +28,9 @@ def fetch_data(ticker, start="2018-01-01", end="2024-12-31"):
 
 def engineer_features(data):
     try:
+        if 'Date' not in data.columns:
+            st.error("Missing 'Date' column in data.")
+            return pd.DataFrame()
         data['Month'] = data['Date'].dt.month
         data['Year'] = data['Date'].dt.year
         data['Price'] = data['Adj Close']
@@ -61,26 +67,32 @@ if ticker:
     if df.empty:
         st.error("Failed to load data or ticker not valid.")
     else:
-        st.write(f"Data from {df['Date'].min().date()} to {df['Date'].max().date()}")
-        st.subheader("Raw Price Chart")
-        st.line_chart(df.set_index("Date")["Adj Close"])
-
-        df_feat = engineer_features(df)
-        st.write("Rows after feature engineering:", len(df_feat))
-
-        if df_feat.empty or len(df_feat) < 50:
-            st.warning("Not enough data after feature engineering.")
+        if 'Date' not in df.columns:
+            st.error("Missing 'Date' column in the dataset.")
         else:
-            model, feat_cols, last_row, prediction, actual, r2, conf_std = train_model(df_feat)
-            if prediction is not None:
-                st.subheader("🔮 Forecast for 1 Year Ahead")
-                st.metric("Predicted Price (in 12 months)", f"${prediction:.2f}", f"± ${conf_std:.2f}")
-                st.metric("Last Actual Price Used", f"${last_row['Price'].values[0]:.2f}")
-                st.metric("R² Score", f"{r2:.4f}")
-
-                st.subheader("📊 Feature Importance")
-                importances = pd.Series(model.feature_importances_, index=feat_cols).sort_values()
-                fig = px.bar(importances, orientation='h', labels={'value': 'Importance', 'index': 'Feature'})
-                st.plotly_chart(fig, use_container_width=True)
+            st.write(f"Data from {df['Date'].min().date()} to {df['Date'].max().date()}")
+            st.subheader("Raw Price Chart")
+            if 'Adj Close' not in df.columns:
+                st.error("Missing 'Adj Close' in data. Available columns: " + ", ".join(df.columns))
             else:
-                st.warning("Model could not be trained properly.")
+                st.line_chart(df.set_index("Date")["Adj Close"])
+
+                df_feat = engineer_features(df)
+                st.write("Rows after feature engineering:", len(df_feat))
+
+                if df_feat.empty or len(df_feat) < 50:
+                    st.warning("Not enough data after feature engineering.")
+                else:
+                    model, feat_cols, last_row, prediction, actual, r2, conf_std = train_model(df_feat)
+                    if prediction is not None:
+                        st.subheader("🔮 Forecast for 1 Year Ahead")
+                        st.metric("Predicted Price (in 12 months)", f"${prediction:.2f}", f"± ${conf_std:.2f}")
+                        st.metric("Last Actual Price Used", f"${last_row['Price'].values[0]:.2f}")
+                        st.metric("R² Score", f"{r2:.4f}")
+
+                        st.subheader("📊 Feature Importance")
+                        importances = pd.Series(model.feature_importances_, index=feat_cols).sort_values()
+                        fig = px.bar(importances, orientation='h', labels={'value': 'Importance', 'index': 'Feature'})
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.warning("Model could not be trained properly.")
