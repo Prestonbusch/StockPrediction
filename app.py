@@ -14,29 +14,29 @@ st.title("📈 1-Year Stock Price Forecast Using Random Forest")
 def fetch_data(ticker, start="2018-01-01", end="2024-12-31"):
     try:
         data = yf.download(ticker, start=start, end=end)
-        if data.empty:
-            return pd.DataFrame()
+        if data.empty or 'Adj Close' not in data.columns:
+            raise ValueError("Downloaded data is empty or missing 'Adj Close'")
         data.reset_index(inplace=True)
-        if 'Adj Close' not in data.columns:
-            data['Adj Close'] = data['Close'] if 'Close' in data.columns else np.nan
-        return data.dropna(subset=['Adj Close'])
+        data = data.dropna(subset=['Adj Close'])
+        return data
     except Exception as e:
         st.error(f"Data fetch error: {e}")
         return pd.DataFrame()
 
 def engineer_features(data):
     try:
-        if 'Date' not in data.columns:
-            st.error("Missing 'Date' column in data.")
-            return pd.DataFrame()
+        if 'Date' not in data.columns or 'Adj Close' not in data.columns:
+            raise ValueError("Missing required columns in data.")
+        data['Date'] = pd.to_datetime(data['Date'])
         data['Month'] = data['Date'].dt.month
         data['Year'] = data['Date'].dt.year
         data['Price'] = data['Adj Close']
         for lag in range(1, 13):
             data[f'Lag_{lag}'] = data['Price'].shift(lag)
         data['Target'] = data['Price'].shift(-12)
-        engineered = data.dropna(subset=[f'Lag_{lag}' for lag in range(1, 13)] + ['Target'])
-        return engineered
+        required_cols = [f'Lag_{lag}' for lag in range(1, 13)] + ['Target']
+        data = data.dropna(subset=required_cols)
+        return data
     except Exception as e:
         st.error(f"Feature engineering error: {e}")
         return pd.DataFrame()
@@ -55,7 +55,7 @@ def train_model(data):
         preds = model.predict(X_test)
         all_tree_preds = np.stack([est.predict(X_test) for est in model.estimators_])
         pred_std = all_tree_preds.std(axis=0)
-        return model, features, X.iloc[-1:], preds[-1], y_test.iloc[-1], r2_score(y_test, preds), pred_std[-1]
+        return model, features, X.iloc[-1:], model.predict(X.iloc[-1:])[0], y_test.iloc[-1], r2_score(y_test, preds), pred_std[-1]
     except Exception as e:
         st.error(f"Model training error: {e}")
         return None, [], None, None, None, None, None
@@ -65,10 +65,7 @@ if ticker:
     df = fetch_data(ticker)
     if df.empty:
         st.error("Failed to load data or ticker not valid.")
-    elif 'Date' not in df.columns:
-        st.error("Missing 'Date' column in the dataset.")
     else:
-        df['Date'] = pd.to_datetime(df['Date'])
         st.write(f"Data from {df['Date'].min().date()} to {df['Date'].max().date()}")
         st.subheader("Raw Price Chart")
         st.line_chart(df.set_index("Date")["Adj Close"])
