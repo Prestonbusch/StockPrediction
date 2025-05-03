@@ -17,9 +17,9 @@ def fetch_data(ticker, start="2018-01-01", end="2024-12-31"):
         if data.empty:
             raise ValueError("Downloaded data is empty")
         data.reset_index(inplace=True)
-        price_column = 'Adj Close' if 'Adj Close' in data.columns else 'Close'
-        if price_column not in data.columns:
-            raise ValueError("No valid price column found in downloaded data")
+        price_column = 'Adj Close' if 'Adj Close' in data.columns else ('Close' if 'Close' in data.columns else None)
+        if price_column is None:
+            raise ValueError("No valid price column ('Adj Close' or 'Close') found in downloaded data")
         data = data.dropna(subset=[price_column])
         data.rename(columns={price_column: 'Price'}, inplace=True)
         return data
