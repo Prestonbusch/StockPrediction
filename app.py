@@ -14,10 +14,10 @@ st.title("📈 1-Year Stock Price Forecast Using Random Forest")
 def fetch_data(ticker, start="2018-01-01", end="2024-12-31"):
     try:
         data = yf.download(ticker, start=start, end=end)
-        if data.empty or 'Adj Close' not in data.columns:
-            raise ValueError("Downloaded data is empty or missing 'Adj Close'")
+        if data.empty or 'Close' not in data.columns:
+            raise ValueError("Downloaded data is empty or missing 'Close'")
         data.reset_index(inplace=True)
-        data = data.dropna(subset=['Adj Close'])
+        data = data.dropna(subset=['Close'])
         return data
     except Exception as e:
         st.error(f"Data fetch error: {e}")
@@ -25,12 +25,12 @@ def fetch_data(ticker, start="2018-01-01", end="2024-12-31"):
 
 def engineer_features(data):
     try:
-        if 'Date' not in data.columns or 'Adj Close' not in data.columns:
+        if 'Date' not in data.columns or 'Close' not in data.columns:
             raise ValueError("Missing required columns in data.")
         data['Date'] = pd.to_datetime(data['Date'])
         data['Month'] = data['Date'].dt.month
         data['Year'] = data['Date'].dt.year
-        data['Price'] = data['Adj Close']
+        data['Price'] = data['Close']
         for lag in range(1, 13):
             data[f'Lag_{lag}'] = data['Price'].shift(lag)
         data['Target'] = data['Price'].shift(-12)
@@ -68,7 +68,7 @@ if ticker:
     else:
         st.write(f"Data from {df['Date'].min().date()} to {df['Date'].max().date()}")
         st.subheader("Raw Price Chart")
-        st.line_chart(df.set_index("Date")["Adj Close"])
+        st.line_chart(df.set_index("Date")["Close"])
 
         df_feat = engineer_features(df)
         st.write("Rows after feature engineering:", len(df_feat))
