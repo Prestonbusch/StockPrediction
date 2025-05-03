@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -65,8 +66,16 @@ def prepare_training_data(df, date_col, price_col):
     y = df_train['Target_Next_Year']
     return X, y, feature_cols
 
+
 def train_models(X, y):
-    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+    # Clean data to avoid ValueError in model training
+    X = X.apply(pd.to_numeric, errors='coerce')
+    y = pd.to_numeric(y, errors='coerce')
+    df = pd.concat([X, y], axis=1).dropna()
+    X_clean = df.iloc[:, :-1]
+    y_clean = df.iloc[:, -1]
+
+    X_train, X_val, y_train, y_val = train_test_split(X_clean, y_clean, test_size=0.2, random_state=42)
     rf_model = RandomForestRegressor(n_estimators=100, random_state=42)
     rf_model.fit(X_train, y_train)
     xgb_model = xgb.XGBRegressor(n_estimators=100, learning_rate=0.1, random_state=42)
@@ -129,4 +138,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-""
